@@ -1,4 +1,3 @@
-# api/validator.py
 import ast
 import re
 from typing import Dict, Any

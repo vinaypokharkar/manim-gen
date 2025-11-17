@@ -1,13 +1,12 @@
-# api/llm_generate.py
-import os, re, json
+import os
+import re
+import json
 from typing import Dict, Any
 
-# Load .env if present so GENAI_API_KEY is available during local/dev runs
 try:
     from dotenv import load_dotenv, find_dotenv
     load_dotenv(find_dotenv(), override=False)
 except Exception:
-    # dotenv is optional; we still rely on OS env or ADC if not installed
     pass
 
 def get_genai_client():
@@ -16,7 +15,6 @@ def get_genai_client():
     except Exception as e:
         raise RuntimeError("google-genai not installed. Run: pip install google-genai") from e
 
-    # Try default credentials like the reference example
     try:
         return genai.Client()
     except Exception:
@@ -95,41 +93,34 @@ class GeneratedScene(Scene):
 Prompt: {user_prompt}
 """
 
-    # Debug: print prompt
     try:
         print("[LLM] Prompt:", user_prompt)
     except Exception:
         pass
 
-    # Correct call: models.generate_content
     resp = client.models.generate_content(
         model="gemini-2.5-flash",
         contents=prompt
     )
 
-    # Extract text: SDK exposes .text for convenience (or see resp.candidates)
     text = getattr(resp, "text", None)
     if not text:
-        # fallback to older/alternate shape: candidates -> content -> text
         try:
             text = resp.candidates[0].content[0].text
         except Exception:
             text = str(resp)
 
-    # Debug: print response text (truncate to keep logs readable)
     try:
         preview = (text or "")[:1200]
         print("[LLM] Response text:\n", preview)
     except Exception:
         pass
 
-    # Extract fenced python code
     m = re.search(r"```(?:python)?\n(.*?)\n```", text, re.S)
     if not m:
         raise ValueError("No fenced python code block found in model output.")
     code = m.group(1).strip()
 
-    # Extract metadata JSON if present
     meta = {}
     mm = re.search(r"///METADATA///\s*(\{.*?\})", text)
     if mm:
@@ -138,7 +129,6 @@ Prompt: {user_prompt}
         except Exception:
             meta = {}
 
-    # Save file
     os.makedirs("generated_scripts", exist_ok=True)
     path = os.path.join("generated_scripts", "generated_scene.py")
     with open(path, "w", encoding="utf-8") as f:
