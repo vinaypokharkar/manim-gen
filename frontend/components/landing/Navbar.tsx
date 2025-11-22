@@ -19,6 +19,19 @@ export const Navbar = ({ onLoginSuccess }: NavbarProps) => {
   const openSignup = () => setAuthMode('signup');
   const closeModal = () => setAuthMode(null);
 
+  // Get username from user metadata, fallback to email
+  const getDisplayName = () => {
+    if (!user) return '';
+    const metadata = user.user_metadata || {};
+    return metadata.full_name || 
+           metadata.name || 
+           metadata.username || 
+           metadata.preferred_username || 
+           user.email?.split('@')[0] || 
+           user.email || 
+           'User';
+  };
+
   const handleSignOut = async () => {
     try {
       await signOut();
@@ -64,7 +77,7 @@ export const Navbar = ({ onLoginSuccess }: NavbarProps) => {
                 <>
                   <div className="flex items-center gap-3">
                     <div className="text-right">
-                      <p className="text-sm font-medium text-white">{user.email}</p>
+                      <p className="text-sm font-medium text-white">{getDisplayName()}</p>
                       <p className="text-xs text-gray-400">Signed in</p>
                     </div>
                     <button 
@@ -112,7 +125,7 @@ export const Navbar = ({ onLoginSuccess }: NavbarProps) => {
               {user ? (
                 <>
                   <div className="px-3 py-2 border-b border-[#525252] mb-2">
-                    <p className="text-sm font-medium text-white">{user.email}</p>
+                    <p className="text-sm font-medium text-white">{getDisplayName()}</p>
                     <p className="text-xs text-gray-400">Signed in</p>
                   </div>
                   <button 
