@@ -5,13 +5,10 @@ import { Navbar } from "../../components/landing/Navbar";
 import { Hero } from "../../components/landing/Hero";
 import { Pricing } from "../../components/landing/Pricing";
 import { Showcase } from "../../components/landing/Showcase";
-import React, { useState } from "react";
-import { AuthModal } from "../../components/landing/AuthModal";
-
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function LandingPage() {
-  // State to simulate authentication
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const { user } = useAuth();
 
   return (
     <div className="min-h-screen text-white selection:bg-[#CA3E47]/30 relative">
@@ -28,16 +25,11 @@ export default function LandingPage() {
       </div>
 
       <div className="relative z-10">
-        {/* Pass login handler and state to Navbar */}
-        <Navbar 
-          onLoginSuccess={() => setIsLoggedIn(true)} 
-          isLoggedIn={isLoggedIn}
-        />
+        <Navbar />
         
         <main>
           <Hero />
-          {/* Pass state to Showcase */}
-          <Showcase isLoggedIn={isLoggedIn} />
+          <Showcase isLoggedIn={!!user} />
           <Pricing />
         </main>
       </div>

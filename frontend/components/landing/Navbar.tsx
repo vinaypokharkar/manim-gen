@@ -1,22 +1,40 @@
 "use client";
 
-import React, { useState } from 'react';
-import { Play, Menu, X, ArrowRight } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Play, Menu, X, ArrowRight, LogOut } from 'lucide-react';
 import Link from 'next/link';
-import { AuthModal } from './AuthModal'; // Import the new component
+import { AuthModal } from './AuthModal';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface NavbarProps {
   onLoginSuccess?: () => void;
-  isLoggedIn?: boolean;
 }
 
-export const Navbar = ({ onLoginSuccess, isLoggedIn = false }: NavbarProps) => {
+export const Navbar = ({ onLoginSuccess }: NavbarProps) => {
+  const { user, signOut, loading: authLoading } = useAuth();
   const [isOpen, setIsOpen] = useState(false); // Mobile menu state
   const [authMode, setAuthMode] = useState<'login' | 'signup' | null>(null); // 'login', 'signup', or null (closed)
 
   const openLogin = () => setAuthMode('login');
   const openSignup = () => setAuthMode('signup');
   const closeModal = () => setAuthMode(null);
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      onLoginSuccess?.(); // Update parent state if needed
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
+
+  // Close modal when user successfully logs in
+  useEffect(() => {
+    if (user && authMode !== null) {
+      closeModal();
+      onLoginSuccess?.();
+    }
+  }, [user, authMode, onLoginSuccess]);
 
   return (
     <>
@@ -42,10 +60,22 @@ export const Navbar = ({ onLoginSuccess, isLoggedIn = false }: NavbarProps) => {
 
             {/* CTA Buttons - Now Interactive */}
             <div className="hidden md:flex items-center gap-4">
-              {isLoggedIn ? (
-                <button className="text-gray-300 hover:text-white text-sm font-medium px-3 py-2 transition-colors">
-                  Dashboard
-                </button>
+              {user ? (
+                <>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <p className="text-sm font-medium text-white">{user.email}</p>
+                      <p className="text-xs text-gray-400">Signed in</p>
+                    </div>
+                    <button 
+                      onClick={handleSignOut}
+                      className="flex items-center gap-2 text-gray-300 hover:text-white text-sm font-medium px-3 py-2 transition-colors"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      Sign Out
+                    </button>
+                  </div>
+                </>
               ) : (
                 <>
                   <button 
@@ -79,18 +109,36 @@ export const Navbar = ({ onLoginSuccess, isLoggedIn = false }: NavbarProps) => {
             <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
               <Link href="#features" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium">Features</Link>
               <Link href="#how-it-works" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium">How it Works</Link>
-              <button 
-                onClick={() => { setIsOpen(false); openLogin(); }}
-                className="w-full text-left text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium"
-              >
-                Sign In
-              </button>
-              <button 
-                onClick={() => { setIsOpen(false); openSignup(); }}
-                className="w-full mt-4 bg-[#CA3E47] text-white px-3 py-2 rounded-md text-base font-medium"
-              >
-                Get Started
-              </button>
+              {user ? (
+                <>
+                  <div className="px-3 py-2 border-b border-[#525252] mb-2">
+                    <p className="text-sm font-medium text-white">{user.email}</p>
+                    <p className="text-xs text-gray-400">Signed in</p>
+                  </div>
+                  <button 
+                    onClick={() => { setIsOpen(false); handleSignOut(); }}
+                    className="w-full text-left text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium flex items-center gap-2"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    Sign Out
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button 
+                    onClick={() => { setIsOpen(false); openLogin(); }}
+                    className="w-full text-left text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium"
+                  >
+                    Sign In
+                  </button>
+                  <button 
+                    onClick={() => { setIsOpen(false); openSignup(); }}
+                    className="w-full mt-4 bg-[#CA3E47] text-white px-3 py-2 rounded-md text-base font-medium"
+                  >
+                    Get Started
+                  </button>
+                </>
+              )}
             </div>
           </div>
         )}
