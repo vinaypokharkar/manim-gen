@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routes import generation, validation, rendering, protected
+from routes import generation, validation, rendering, protected, auth, chats
 import os
 
 app = FastAPI(title="Simple Manim Runner")
@@ -9,10 +9,7 @@ app = FastAPI(title="Simple Manim Runner")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:3001",
+        "*"
     ],  # Add your frontend URLs here
     allow_credentials=True,
     allow_methods=["*"],  # Allows all methods (GET, POST, PUT, DELETE, etc.)
@@ -23,6 +20,8 @@ app.include_router(generation.router, prefix="/api")
 app.include_router(validation.router, prefix="/api")
 app.include_router(rendering.router, prefix="/api")
 app.include_router(protected.router, prefix="/api")
+app.include_router(auth.router, prefix="/api/auth")
+app.include_router(chats.router, prefix="/api/chats")
 
 
 @app.get("/debug/supabase")

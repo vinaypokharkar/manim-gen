@@ -1,35 +1,34 @@
-import { useAuth } from '@/contexts/AuthContext';
+import axios from "axios";
+import { createClient } from "@/lib/supabase/client";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8008';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 
-export async function apiRequest(
-  endpoint: string,
-  options: RequestInit = {},
-  getAccessToken?: () => string | null
-): Promise<Response> {
-  const url = `${API_BASE_URL}${endpoint}`;
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    ...options.headers,
-  };
+export const apiClient = axios.create({
+  baseURL: API_URL,
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
 
-  // Add authorization header if access token is available
-  if (getAccessToken) {
-    const token = getAccessToken();
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
+// Request interceptor to add Auth token
+apiClient.interceptors.request.use(async (config) => {
+  const supabase = createClient();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (session?.access_token) {
+    config.headers.Authorization = `Bearer ${session.access_token}`;
   }
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  });
+  return config;
+});
 
-  if (!response.ok) {
-    throw new Error(`API error: ${response.status} ${response.statusText}`);
+// Response interceptor for basic error handling
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // Optional: Handle 401s globally (e.g. redirect to login)
+    return Promise.reject(error);
   }
-
-  return response;
-}
-
+);

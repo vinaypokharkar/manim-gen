@@ -26,3 +26,21 @@ async def get_user_from_supabase(token: str) -> dict | None:
         if r.status_code == 200:
             return r.json()
         return None
+
+from supabase import create_client, Client
+
+_supabase_client: Client | None = None
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+def get_supabase_client() -> Client:
+    """
+    Returns a singleton Supabase client initialized with the ANON key.
+    Use this for client-side operations (like auth.sign_up) proxied by the backend.
+    """
+    global _supabase_client
+    if _supabase_client is None:
+        if not SUPABASE_URL or not SUPABASE_KEY:
+            # Fallback or error? For now, raise.
+            raise RuntimeError("SUPABASE_URL and SUPABASE_KEY (Anon) must be set in environment")
+        _supabase_client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    return _supabase_client

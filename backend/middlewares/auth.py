@@ -64,8 +64,12 @@ async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] =
     # 1) Try local verification if configured
     payload = await _verify_jwt_locally(token)
     if payload:
+        # Check active status
+        user_id = payload.get("sub")
+        if not await check_user_active(user_id):
+             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User account is inactive")
+
         # Optional: basic sanity checks
-        sub = payload.get("sub")
         exp = payload.get("exp")
         if exp is not None:
             now = datetime.now(tz=timezone.utc).timestamp()
@@ -75,7 +79,7 @@ async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] =
         # Build AuthUser from payload (Supabase user claims are often inside 'user' or top-level claims)
         # We'll standardize common fields.
         user_info = {
-            "id": sub,
+            "id": user_id,
             "email": payload.get("email"),
             "role": payload.get("role") or payload.get("app_metadata", {}).get("role"),
             **payload
@@ -85,7 +89,28 @@ async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] =
     # 2) Fall back to Supabase admin verify (server call)
     user = await get_user_from_supabase(token)
     if user:
+        user_id = user.get("id")
+        if not await check_user_active(user_id):
+             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User account is inactive")
         return AuthUser(user)
 
     # If none succeeded, unauthorized
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
+
+async def check_user_active(user_id: str):
+    """
+    Helper to check if a user is active in public.profiles.
+    """
+    from utils.supabase_client import get_supabase_client
+    supabase = get_supabase_client()
+    try:
+        # Use single() to expected exactly one row
+        res = supabase.table("profiles").select("is_active").eq("id", user_id).single()
+        if res.data and not res.data.get("is_active", True):
+            return False
+        return True
+    except Exception:
+        # If profile doesn't exist, assume active? Or fail? 
+        # Safest is to log and proceed or fail. 
+        # For now, let's assume if profile missing, they rely on Auth User status.
+        return True

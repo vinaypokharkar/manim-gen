@@ -39,3 +39,48 @@ class CombinedGenerateRenderResponse(BaseModel):
     sanitized_code: Optional[str] = None
     error: Optional[str] = None
     logs: Optional[Dict[str, Any]] = None
+
+class UserSignup(BaseModel):
+    email: str
+    password: str
+    full_name: Optional[str] = None
+
+class UserLogin(BaseModel):
+    email: str
+    password: str
+
+class AuthResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    user: Dict[str, Any]
+
+class ChatBase(BaseModel):
+    title: str
+
+class ChatOut(ChatBase):
+    id: str
+    created_at: str
+    updated_at: str
+
+class MessageBase(BaseModel):
+    role: str
+    content: str
+
+class MessageOut(MessageBase):
+    id: str
+    created_at: str
+
+class VideoOut(BaseModel):
+    id: str
+    video_url: str | None
+    code: str | None
+    created_at: str
+
+class ChatWithMessages(ChatOut):
+    messages: List[MessageOut] = []
+
+class CreateChatRequest(BaseModel):
+    title: Optional[str] = "New Chat"
+    initial_prompt: Optional[str] = None
+
+
