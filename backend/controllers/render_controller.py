@@ -64,17 +64,34 @@ async def render_code(req):
 
         quality_flag = {"low": "-ql", "medium": "-pqm", "high": "-pqh"}.get(req.quality, "-pql")
 
-        out_name = "render"
-        cmd = [
-            "docker", "run", "--rm",
-            "--read-only=false",
-            "--network", "none",
-            "-v", f"{tmp}:/work",
-            "manim-image:latest",
-            quality_flag, f"/work/{req.filename}", req.scene_class,
-            "--media_dir", "/work/media",
-            "-o", out_name
-        ]
+        # Decide whether to use Docker or Native Manim
+        use_native = os.getenv("USE_NATIVE_MANIM", "false").lower() == "true"
+
+        if use_native:
+            # Run Manim directly in this environment
+            # Ensure manim is installed: pip install manim
+            output_flag = "-o"
+            # Manim CLI: manim -ql filename.py SceneName -o outputname --media_dir ...
+            cmd = [
+                "manim",
+                quality_flag,
+                script_path,
+                req.scene_class,
+                "--media_dir", os.path.join(tmp, "media"),
+                "-o", out_name
+            ]
+        else:
+            # Use Docker (Default for local dev if they have the image)
+            cmd = [
+                "docker", "run", "--rm",
+                "--read-only=false",
+                "--network", "none",
+                "-v", f"{tmp}:/work",
+                "manim-image:latest",
+                quality_flag, f"/work/{req.filename}", req.scene_class,
+                "--media_dir", "/work/media",
+                "-o", out_name
+            ]
 
         proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=600)
         stdout = proc.stdout.decode(errors="ignore")
@@ -202,17 +219,29 @@ def retry_render(code: str, filename: str, scene_class: str, quality: str, max_r
                 f.write(current_code)
 
             quality_flag = {"low": "-ql", "medium": "-pqm", "high": "-pqh"}.get(quality, "-ql")
-            out_name = "render"
-            cmd = [
-                "docker", "run", "--rm",
-                "--read-only=false",
-                "--network", "none",
-                "-v", f"{tmp}:/work",
-                "manim-image:latest",
-                quality_flag, f"/work/{filename}", scene_class,
-                "--media_dir", "/work/media",
-                "-o", out_name
-            ]
+            # Decide whether to use Docker or Native Manim
+            use_native = os.getenv("USE_NATIVE_MANIM", "false").lower() == "true"
+            
+            if use_native:
+                cmd = [
+                    "manim",
+                    quality_flag,
+                    script_path,
+                    scene_class,
+                    "--media_dir", os.path.join(tmp, "media"),
+                    "-o", out_name
+                ]
+            else:
+                cmd = [
+                    "docker", "run", "--rm",
+                    "--read-only=false",
+                    "--network", "none",
+                    "-v", f"{tmp}:/work",
+                    "manim-image:latest",
+                    quality_flag, f"/work/{filename}", scene_class,
+                    "--media_dir", "/work/media",
+                    "-o", out_name
+                ]
 
             proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=600)
             stdout = proc.stdout.decode(errors="ignore")

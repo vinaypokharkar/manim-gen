@@ -1,0 +1,50 @@
+FROM python:3.11-slim
+
+# 1. Install system dependencies for Manim
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    ffmpeg \
+    libcairo2-dev \
+    pkg-config \
+    libpango1.0-dev \
+    libgirepository1.0-dev \
+    gir1.2-pango-1.0 \
+    python3-dev \
+    git \
+    wget \
+    texlive-latex-recommended \
+    texlive-latex-extra \
+    texlive-fonts-recommended \
+    texlive-xetex \
+    latexmk \
+    dvisvgm \
+    cm-super \
+    ghostscript \
+    && rm -rf /var/lib/apt/lists/*
+
+# 2. Set up working directory
+WORKDIR /app
+
+# 3. Install Python dependencies
+# First copy only requirements to cache pip install
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip
+RUN pip install --no-cache-dir -r requirements.txt
+# Manim is already in requirements.txt (implied, or should be added if missing)
+RUN pip install --no-cache-dir manim
+
+# 4. Copy backend code
+COPY . .
+
+# 5. Create directories needed for runtime
+RUN mkdir -p generated_scripts generated_videos
+
+# 6. Set environment variables
+ENV USE_NATIVE_MANIM=true
+ENV PYTHONUNBUFFERED=1
+
+# 7. Expose port (Render sets PORT env, uvicorn needs to listen on it)
+# We use a start script or just command to handle PORT dynamically if needed, 
+# but uvicorn can be passed $PORT.
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]

@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: animind-backend
+    runtime: docker
+    region: singapore
+    plan: free
+    dockerFilePath: ./backend/Dockerfile.render
+    dockerContext: ./backend
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+      - key: PYTHONUNBUFFERED
+        value: 1
+      - key: PORT
+        value: 8000
+    healthCheckPath: /api/
+    autoDeploy: false
