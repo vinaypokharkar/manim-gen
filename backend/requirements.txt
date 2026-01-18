@@ -1,7 +1,8 @@
 fastapi
 uvicorn
 pydantic
-google-generativeai
 python-dotenv
 supabase
 docker
+python-jose[cryptography]
+google-genai

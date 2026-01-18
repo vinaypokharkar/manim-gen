@@ -29,13 +29,19 @@ async def create_chat(req: CreateChatRequest, user: AuthUser = Depends(get_curre
         "user_id": user.id,
         "title": req.title or "New Chat"
     }
-    chat_res = supabase.table("chats").insert(chat_data).select().single().execute()
-    chat = chat_res.data
+    chat_res = supabase.table("chats").insert(chat_data).execute()
+    chat = chat_res.data[0]
     
-    # 2. If initial prompt provided, we can trigger the flow (optional, for now just create chat)
+    # 2. If initial prompt provided, trigger flow
     if req.initial_prompt:
-        # TODO: Trigger initial message creation logic?
-        pass
+        # We can run this in background or await it. Awaiting it makes the UI wait for generation (slow).
+        # But usually Create Chat returns the Chat object fast.
+        # For simplicity in this user request "displaying ... chats and history", we might want to just start it.
+        # However, if we want to return the populated chat, we must await.
+        # Let's await to keep it simple and consistent.
+        await process_user_message(chat["id"], req.initial_prompt, user)
+        # Fetch fresh chat data to return updated timestamps if needed, 
+        # but the chat object "id" and "title" are enough for the list.
         
     return chat
 
@@ -55,53 +61,54 @@ async def get_chat(chat_id: str, user: AuthUser = Depends(get_current_user)):
         "messages": msgs_res.data
     }
 
-@router.post("/{chat_id}/message")
-async def send_message(chat_id: str, req: PromptIn, user: AuthUser = Depends(get_current_user)):
-    """
-    User sends a prompt. 
-    1. Save User Message.
-    2. Generate & Render Video (this effectively is the Assistant's work).
-    3. Save Assistant Message + Video Link.
-    """
+async def process_user_message(chat_id: str, prompt: str, user: AuthUser):
     supabase = get_supabase_client()
     
-    # Verify chat ownership first
-    chat_res = supabase.table("chats").select("id").eq("id", chat_id).eq("user_id", user.id).single().execute()
-    if not chat_res.data:
-         raise HTTPException(status_code=404, detail="Chat not found")
+    # 1. Update Chat's updated_at timestamp
+    # This ensures the chat moves to the top of the list
+    from datetime import datetime, timezone
+    now_iso = datetime.now(timezone.utc).isoformat()
+    supabase.table("chats").update({"updated_at": now_iso}).eq("id", chat_id).execute()
 
-    # 1. Save User Message
+    # 2. Save User Message
     user_msg_data = {
         "chat_id": chat_id,
         "role": "user",
-        "content": req.prompt
+        "content": prompt
     }
+    # Ideally add user_id to messages if the schema supports it for RLS
+    # user_msg_data["user_id"] = user.id 
+    
     supabase.table("messages").insert(user_msg_data).execute()
     
-    # 2. Generate Logic (Invoke existing controller)
-    # This involves calling LLM -> Generating Code -> Rendering Video
+    # 3. Generate Logic
     try:
         render_req = CombinedGenerateRenderRequest(
-            prompt=req.prompt,
-            filename=f"chat_{chat_id}_step.py", # Temporary filename mostly
+            prompt=prompt,
+            filename=f"chat_{chat_id}_step.py",
             max_retries=2
         )
         
         # Call the heavy lifter
         result = await generate_and_render(render_req)
         
-        # 3. Construct Assistant Response
+        # result is a dict
+        is_success = result.get("success", False)
+        sanitized_code = result.get("sanitized_code")
+        error_msg_val = result.get("error")
+        supabase_url = result.get("supabase_url")
+
+        # 4. Construct Assistant Response
         assistant_content = ""
-        video_record = None
         
-        if result.success:
-            assistant_content = f"Here is the generated video for: {req.prompt}"
-            if result.sanitized_code:
-                 assistant_content += f"\n\nCode used:\n```python\n{result.sanitized_code}\n```"
+        if is_success:
+            assistant_content = f"Here is the generated video for: {prompt}"
+            if sanitized_code:
+                 assistant_content += f"\n\nCode used:\n```python\n{sanitized_code}\n```"
         else:
-            assistant_content = f"I failed to generate the video. Error: {result.error}"
-            if result.sanitized_code:
-                 assistant_content += f"\n\nI tried running:\n```python\n{result.sanitized_code}\n```"
+            assistant_content = f"I failed to generate the video. Error: {error_msg_val}"
+            if sanitized_code:
+                 assistant_content += f"\n\nI tried running:\n```python\n{sanitized_code}\n```"
 
         # Save Assistant Message
         asst_msg_data = {
@@ -109,24 +116,24 @@ async def send_message(chat_id: str, req: PromptIn, user: AuthUser = Depends(get
             "role": "assistant",
             "content": assistant_content
         }
-        asst_msg_res = supabase.table("messages").insert(asst_msg_data).select().single().execute()
-        asst_msg = asst_msg_res.data
+        asst_msg_res = supabase.table("messages").insert(asst_msg_data).execute()
+        asst_msg = asst_msg_res.data[0]
         
-        # 4. If success, Save Video Record linked to this message
-        if result.success and result.supabase_url:
+        # 5. If success, Save Video Record linked to this message
+        if is_success and supabase_url:
             video_data = {
                 "chat_id": chat_id,
                 "message_id": asst_msg["id"],
                 "user_id": user.id,
-                "prompt": req.prompt,
-                "code": result.sanitized_code,
-                "video_url": result.supabase_url
+                "prompt": prompt,
+                "code": sanitized_code,
+                "video_url": supabase_url
             }
             supabase.table("generated_videos").insert(video_data).execute()
             
         return {
             "message": asst_msg,
-            "video_url": result.supabase_url if result.success else None
+            "video_url": supabase_url if is_success else None
         }
 
     except Exception as e:
@@ -138,3 +145,20 @@ async def send_message(chat_id: str, req: PromptIn, user: AuthUser = Depends(get
         }
         supabase.table("messages").insert(err_msg).execute()
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{chat_id}/message")
+async def send_message(chat_id: str, req: PromptIn, user: AuthUser = Depends(get_current_user)):
+    """
+    User sends a prompt. 
+    1. Saves message. 2. Generates video. 3. Saves response.
+    Verifies ownership.
+    """
+    supabase = get_supabase_client()
+    
+    # Verify chat ownership first
+    chat_res = supabase.table("chats").select("id").eq("id", chat_id).eq("user_id", user.id).single().execute()
+    if not chat_res.data:
+         raise HTTPException(status_code=404, detail="Chat not found")
+
+    return await process_user_message(chat_id, req.prompt, user)
