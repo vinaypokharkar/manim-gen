@@ -74,15 +74,52 @@ async def google_login():
     try:
         # Get the current URL for redirection (assuming localhost for dev)
         # In production, this should be your frontend URL
-        frontend_url = "http://localhost:3000"
+        # We can read this from env if needed
+        import os
+        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
         redirect_url = f"{frontend_url}/auth/callback"
         
         data = supabase.auth.sign_in_with_oauth({
             "provider": "google",
             "options": {
-                "redirect_to": redirect_url
+                "redirect_to": redirect_url,
+                "queryParams": {
+                    "access_type": "offline",
+                    "prompt": "consent"
+                }
             }
         })
         return {"url": data.url}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.post("/callback", response_model=AuthResponse)
+async def auth_callback(payload: dict):
+    """
+    Exchanges the auth code for a session.
+    Expects JSON body: {"code": "..."}
+    """
+    supabase = get_supabase_client()
+    code = payload.get("code")
+    if not code:
+        raise HTTPException(status_code=400, detail="Code is required")
+        
+    try:
+        # Exchange code for session
+        response = supabase.auth.exchange_code_for_session({"auth_code": code})
+        
+        if not response.session:
+            raise HTTPException(status_code=400, detail="Failed to exchange code for session")
+            
+        return {
+            "access_token": response.session.access_token,
+            "refresh_token": response.session.refresh_token,
+            "user": {
+                "id": response.user.id,
+                "email": response.user.email,
+                "metadata": response.user.user_metadata,
+                "created_at": response.user.created_at
+            }
+        }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

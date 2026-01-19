@@ -1,10 +1,78 @@
+"use client";
+
 import Link from "next/link";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Github, Sparkles } from "lucide-react";
+import { Github, Sparkles, Loader2 } from "lucide-react";
 
 export default function SignupPage() {
+  const router = useRouter();
+  const [formData, setFormData] = useState({
+    fullName: "",
+    email: "",
+    password: "",
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({ ...formData, [e.target.id]: e.target.value });
+  };
+
+  const handleSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_SERVER_URL}/api/auth/signup`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: formData.email,
+            password: formData.password,
+            full_name: formData.fullName,
+          }),
+        },
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.detail || "Signup failed");
+      }
+
+      // Success: Redirect to login or showing a success message
+      // For now, redirecting to login
+      router.push("/login?signup=success");
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_SERVER_URL}/api/auth/google`,
+      );
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (err) {
+      setError("Failed to initiate Google login");
+    }
+  };
+
   return (
     <div className="relative min-h-screen w-full flex-col items-center justify-center grid lg:max-w-none lg:grid-cols-2 lg:px-0 overflow-hidden">
       {/* Background Animation covering the entire page */}
@@ -27,12 +95,22 @@ export default function SignupPage() {
             </p>
           </div>
           <div className="grid gap-6">
+            {error && (
+              <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-md">
+                {error}
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-4">
               <Button variant="outline" className="w-full bg-background/50">
                 <Github className="mr-2 h-4 w-4" />
                 GitHub
               </Button>
-              <Button variant="outline" className="w-full bg-background/50">
+              <Button
+                variant="outline"
+                className="w-full bg-background/50"
+                onClick={handleGoogleLogin}
+              >
                 <svg
                   className="mr-2 h-4 w-4"
                   aria-hidden="true"
@@ -61,37 +139,52 @@ export default function SignupPage() {
                 </span>
               </div>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="full-name">Full Name</Label>
-              <Input
-                id="full-name"
-                placeholder="John Doe"
-                required
-                className="bg-background/50"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="email">Email address</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="m@example.com"
-                required
-                className="bg-background/50"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                required
-                className="bg-background/50"
-              />
-            </div>
-            <Button className="w-full text-foreground" type="submit">
-              Continue
-            </Button>
+            <form onSubmit={handleSignup} className="grid gap-2">
+              <div className="grid gap-2">
+                <Label htmlFor="fullName">Full Name</Label>
+                <Input
+                  id="fullName" // matches key in state
+                  placeholder="John Doe"
+                  required
+                  value={formData.fullName}
+                  onChange={handleChange}
+                  className="bg-background/50"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="email">Email address</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="m@example.com"
+                  required
+                  value={formData.email}
+                  onChange={handleChange}
+                  className="bg-background/50"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  required
+                  value={formData.password}
+                  onChange={handleChange}
+                  className="bg-background/50"
+                />
+              </div>
+              <Button
+                className="w-full text-foreground"
+                type="submit"
+                disabled={loading}
+              >
+                {loading ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
+                Continue
+              </Button>
+            </form>
           </div>
           <p className="px-8 text-center text-sm text-muted-foreground">
             Already have an account?{" "}
