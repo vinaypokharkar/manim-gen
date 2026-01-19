@@ -68,6 +68,8 @@ class MessageBase(BaseModel):
 
 class MessageOut(MessageBase):
     id: str
+    video_url: Optional[str] = None
+    sanitized_code: Optional[str] = None
     created_at: str
 
 class VideoOut(BaseModel):

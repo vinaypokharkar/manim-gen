@@ -55,10 +55,21 @@ async def get_chat(chat_id: str, user: AuthUser = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Chat not found")
         
     msgs_res = supabase.table("messages").select("*").eq("chat_id", chat_id).order("created_at").execute()
+    messages = msgs_res.data
     
+    # Fetch videos linked to messages
+    videos_res = supabase.table("generated_videos").select("message_id, video_url, code").eq("chat_id", chat_id).execute()
+    video_map = {v["message_id"]: v for v in videos_res.data}
+    
+    # Merge video data into messages
+    for msg in messages:
+        if msg["id"] in video_map:
+            msg["video_url"] = video_map[msg["id"]]["video_url"]
+            msg["sanitized_code"] = video_map[msg["id"]]["code"]
+
     return {
         **chat_res.data,
-        "messages": msgs_res.data
+        "messages": messages
     }
 
 async def process_user_message(chat_id: str, prompt: str, user: AuthUser):
@@ -131,10 +142,11 @@ async def process_user_message(chat_id: str, prompt: str, user: AuthUser):
             }
             supabase.table("generated_videos").insert(video_data).execute()
             
-        return {
-            "message": asst_msg,
-            "video_url": supabase_url if is_success else None
-        }
+        # Merge video data into message response
+        asst_msg["video_url"] = supabase_url if is_success else None
+        asst_msg["sanitized_code"] = sanitized_code
+             
+        return asst_msg
 
     except Exception as e:
         # If generation fails hard
