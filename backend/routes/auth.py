@@ -77,7 +77,7 @@ async def google_login():
         # We can read this from env if needed
    
         import os
-        frontend_url = os.getenv("FRONTEND_URL")
+        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
         redirect_url = f"{frontend_url}/auth/callback"
         
         data = supabase.auth.sign_in_with_oauth({

@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
+import { RecentProjects } from "@/components/landing/RecentProjects";
 
 export default function Home() {
   const router = useRouter();
@@ -111,6 +112,7 @@ export default function Home() {
             </div>
           </div>
         </div>
+        <RecentProjects />
       </main>
     </div>
   );
