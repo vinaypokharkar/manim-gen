@@ -855,6 +855,3 @@ sudo certbot --nginx -d your-domain.com -d api.your-domain.com
 ---
 
 Built with ❤️ using Next.js, FastAPI, Manim, and Supabase
-
-
-Test
